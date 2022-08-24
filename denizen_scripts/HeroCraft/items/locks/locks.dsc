@@ -29,7 +29,7 @@ imprint_key_manage_players:
             - ratelimit <player> 1t
             - stop if:<context.entity.is_player.not>
             - determine passively cancelled
-            - if <context.item.flag[locks.location].flag[locks.allowed].size> >= 27:
+            - if <context.item.flag[locks.location].flag[locks.allowed].size||0> >= 27:
                 - narrate "<&c>Can't add anyone else to that container! :(" targets:<player>
                 - log "<player.name> maxed out perm'd players at <context.location.simple> (<context.location.material.name>)." info file:logs/locks.log
                 - stop
@@ -43,8 +43,11 @@ imprint_key_manage_players:
             - narrate "<green>Granted access to <context.entity.name>." targets:<player>
         on player right clicks block with:item_flagged:locks.location:
             - ratelimit <player> 1t
-            - stop if:<context.item.flag[locks.location].equals[<context.location>].not>
+            - stop if:<context.item.flag[locks.location].equals[<context.location>].not||true>
             - determine passively cancelled
+            - if <player.is_sneaking>:
+                # remove lock code here
+                - stop
             - define inv <inventory[lock_permissions].include[<item[air]>]>
             - inventory open d:<[inv]>
             - foreach <context.location.flag[locks.allowed].exclude[<player>]> as:target:
@@ -59,7 +62,7 @@ lock_remove_access:
         - flag <context.item.flag[location]> locks.allowed:<-:<context.item.flag[person]>
         - narrate "<green>Removed access from <context.item.flag[person].name||ERROR>."
         - define ls <context.item.flag[location].round_down>
-        - narrate "You got your access removed from <context.item.flag[location].material.name.to_lowercase> at <[ls].x> <[ls].y> <[ls].z>." targets:<context.item.flag[person]> if:<context.item.flag[person].is_online>
+        - narrate "You got your access removed from the <context.item.flag[location].material.name.to_lowercase> at <[ls].x> <[ls].y> <[ls].z>!" targets:<context.item.flag[person]> if:<context.item.flag[person].is_online>
         - log "<player.name> removed perms of <context.item.flag[location].simple> (<context.item.flag[location].material.name>) from <context.item.flag[person].name>." info file:logs/locks.log
 
 lock_permissions:
@@ -79,34 +82,65 @@ lock_apply:
         - stop if:<player.is_sneaking>
         # If location is a town and the player is not a resident in the town, stop
         - stop if:<context.location.town.residents.contains[<player>].not||false>
+        - stop if:<player.worldguard.can_build[<context.location>].not||false>
+        # Only for blocks with an inventory
+        - stop if:<context.location.inventory.exists.not>
+        - stop if:<context.location.has_flag[locks.level]>
+        - determine passively cancelled
         - if <context.location.material.name> == trapped_chest:
             - log "<player.name> was denied a lock and hurt at <context.location.simple> because it was a trapped chest. ROFL." info file:logs/locks.log
             - hurt 5 <player> cause:MAGIC source:<player>
             - playsound <player> sound:entity_ghast_scream
             - stop
-        # Only for blocks with an inventory
-        - stop if:<context.location.inventory.exists.not>
         # No double chests
         - if <context.location.half.is_in[LEFT|RIGHT]||false>:
             - log "<player.name> was denied a lock at <context.location.simple> because it was a double chest." info file:logs/locks.log
             - narrate "<&c>You cannot apply a lock to a double chest!"
             - playsound <player> sound:entity_villager_no
             - stop
-        - determine passively cancelled
         - take item:<context.item> quantity:1 from:<player.inventory>
         - define uuid <util.random_uuid>
         - flag <context.location> locks.level:<context.item.flag[locks.level]||basic>
         - flag <context.location> locks.allowed:<list_single[<player>]>
         - flag <context.location> locks.uuid:<[uuid]>
         - define ls <context.location.round_down>
-        - narrate "<context.item.display||<context.item.material.name.to_titlecase||Basic> Lock><&r> applied to <context.location.material.name.to_titlecase> at <[ls].x> <[ls].y> <[ls].z>!"
+        - narrate "<context.item.display||<context.item.material.name.to_titlecase||Basic> Lock><&r><green> applied to <context.location.material.name.to_titlecase> at <[ls].x> <[ls].y> <[ls].z>!"
         - define key "<item[imprint_key].with_single[display_name=<context.location.material.name.to_titlecase> Imprint Key]>"
         - define key "<[key].with[lore=<&f><bold>Location: <[ls].x> <[ls].y> <[ls].z>]>"
-        - define key "<[key].with[lore=<[key].lore.include[<&f>Left click another player to grant them access!]>]>"
+        - define key <[key].with[lore=<[key].lore.include[<empty>]>]>
+        - define key "<[key].with[lore=<[key].lore.include[<&f>Right click another player to give them access.]>]>"
         - define key "<[key].with[lore=<[key].lore.include[<&f>Right click the container to manage who can access it.]>]>"
+        - define key "<[key].with[lore=<[key].lore.include[<&f>Shift right click the container to remove the lock.]>]>"
         - define key <[key].with[lore=<[key].lore.include[<empty>]>]>
         - define key "<[key].with[lore=<[key].lore.include[<&f><underline>You do not need this key to open the container.]>]>"
         - define key <[key].with_flag[locks.location:<context.location>]>
         - define key <[key].with_flag[locks.original_owner:<player>]>
         - define key <[key].with_flag[locks.uuid:<[uuid]>]>
         - give <[key]> quantity:1 to:<player> slot:<player.held_item_slot>
+
+lock_pick:
+    type: item
+    material: stick
+    display name: <&f>Lock Pick
+    flags:
+        locks_pick:
+            level: basic
+
+lock_pick_events:
+    type: world
+    debug: false
+    events:
+        on player right clicks block location_flagged:locks.level with:item_flagged:locks_pick.level:
+            - ratelimit <player> 3t
+            - stop if:<player.is_sneaking.not>
+            - stop if:<context.location.flag[locks.allowed].contains[<player>]||false>
+            - define chance 90
+            - if <util.random_chance[<[chance]>]>:
+                - take item:<context.item> from:<player.inventory> quantity:1
+                - narrate "<red>Your <context.item.display||<context.item.material.name.replace[_].with[ ]>> broke!"
+                - playsound <context.location> sound:entity_item_break pitch:2.0
+                - stop
+            - flag <context.location> locks:!
+            - narrate "<green>You picked the lock!"
+            - mcmmo add xp skill:repair quantity:<util.random.int[10].to[50]> player:<player> if:<proc[mcmmo_installed]||false>
+            - playsound <context.location> sound:block_chain_break pitch:0.5 volume:2.0
