@@ -134,13 +134,37 @@ lock_pick_events:
             - ratelimit <player> 3t
             - stop if:<player.is_sneaking.not>
             - stop if:<context.location.flag[locks.allowed].contains[<player>]||false>
+            - stop if:<player.worldguard.can_build[<context.location>].not||false>
+            - if <context.location.town.residents.contains[<player>]>:
+                - narrate "<&c>Whoa! You can't pick this lock because it is from a different town!"
+                - playsound <player> sound:entity_villager_no
+                - log "<player.name> tried to lock pick a lock at <context.location.simple> but failed because it belongs to town <context.location.town.name>." info file:logs/locks.log
+                - stop
             - define chance 90
             - if <util.random_chance[<[chance]>]>:
                 - take item:<context.item> from:<player.inventory> quantity:1
                 - narrate "<red>Your <context.item.display||<context.item.material.name.replace[_].with[ ]>> broke!"
                 - playsound <context.location> sound:entity_item_break pitch:2.0
+                - log "<player.name> broke a lock pick at <context.location.simple> (<context.location.material.name>)." info file:logs/locks.log
                 - stop
             - flag <context.location> locks:!
             - narrate "<green>You picked the lock!"
+            - log "<player.name> picked a lock at <context.location.simple> (<context.location.material.name>)!" info file:logs/locks.log
             - mcmmo add xp skill:repair quantity:<util.random.int[10].to[50]> player:<player> if:<proc[mcmmo_installed]||false>
             - playsound <context.location> sound:block_chain_break pitch:0.5 volume:2.0
+
+locked_container_events:
+    type: world
+    debug: false
+    events:
+        on player breaks block location_flagged:locks.allowed:
+            - if <context.location.flag[locks.allowed].contains[<player>]>:
+                - flag <context.location> locks:!
+            - else:
+                - narrate "You can't break this <context.location.material.name.replace[_].with[ ].to_titlecase> because it's locked!"
+                - determine passively cancelled
+        on item moves from inventory to inventory:
+            - if <context.origin.location.has_flag[locks.allowed]>:
+                - determine cancelled
+        on block destroyed by explosion location_flagged:locks.allowed:
+            - determine cancelled
