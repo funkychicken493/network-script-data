@@ -55,7 +55,7 @@ imprint_key_manage_players:
             - define inv <inventory[lock_permissions].include[<item[air]>]>
             - inventory open d:<[inv]>
             - foreach <context.location.flag[locks.allowed].exclude[<player>]> as:target:
-                - give to:<[inv]> "player_head[skull_skin=<[target].skull_skin>;custom_model_data=1;display=<[target].proc[get_player_display_name]>;flag=run_script:lock_remove_access;flag=person:<[target]>;flag=location:<context.location>;lore=<list_single[<white>Left click to remove.]>]"
+                - give to:<[inv]> "player_head[skull_skin=<[target].skull_skin>;custom_model_data=1;display=<&f><[target].proc[get_player_display_name]>;flag=run_script:lock_remove_access;flag=person:<[target]>;flag=location:<context.location>;lore=<list_single[<white>Left click to remove.]>]"
             - log "<player.name> began editing perms of <context.location.simple> (<context.location.material.name>)." info file:logs/locks.log
 
 lock_remove_access:
@@ -122,13 +122,21 @@ lock_apply:
         - define key <[key].with_flag[locks.uuid:<[uuid]>]>
         - give <[key]> quantity:1 to:<player> slot:<player.held_item_slot>
 
-lock_pick:
+basic_lock_pick:
     type: item
     material: stick
     display name: <&f>Lock Pick
     flags:
         locks_pick:
             level: basic
+
+admin_lock_pick:
+    type: item
+    material: stick
+    display name: <red><bold>Admin Lock Pick
+    flags:
+        locks_pick:
+            level: admin
 
 lock_pick_events:
     type: world
@@ -144,7 +152,15 @@ lock_pick_events:
                 - playsound <player> sound:entity_villager_no
                 - log "<player.name> tried to lock pick a lock at <context.location.simple> but failed because it belongs to town <context.location.town.name>." info file:logs/locks.log
                 - stop
-            - define chance 90
+            ## Chance == chance of failure
+            - choose <context.item.flag[locks_pick.level]>:
+                - case basic:
+                    - define chance 90
+                - case admin:
+                    - define chance 0
+                    - log "<player.name> used an admin lock pick at <context.location.simple> (<context.location.material.name>)." info file:logs/locks.log
+                - default:
+                    - define chance 80
             - if <util.random_chance[<[chance]>]>:
                 - take item:<context.item> from:<player.inventory> quantity:1
                 - narrate "<red>Your <context.item.display||<context.item.material.name.replace[_].with[ ]>> broke!"
