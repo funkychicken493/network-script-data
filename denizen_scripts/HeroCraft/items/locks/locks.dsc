@@ -15,7 +15,7 @@ basic_lock:
 imprint_key:
     type: item
     material: tripwire_hook
-    display name: <&c>Disambiguous Imprint Key
+    display name: <red>Disambiguous Imprint Key
     mechanisms:
         hides: all
     enchantments:
@@ -46,7 +46,11 @@ imprint_key_manage_players:
             - stop if:<context.item.flag[locks.location].equals[<context.location>].not||true>
             - determine passively cancelled
             - if <player.is_sneaking>:
-                # remove lock code here
+                - narrate "<green>Removed <context.location.flag[locks.level].if_null[basic].to_titlecase> Lock!"
+                - drop <context.location.flag[locks.level].if_null[basic]>_lock <context.location.above[1]> quantity:1
+                - playsound <context.location> sound:block_chain_break pitch:2.0
+                - log "<player.name> removed <context.location.flag[locks.level]> lock from <context.location.simple> (<context.location.material.name>)." info file:logs/locks.log
+                - flag <context.location> locks:!
                 - stop
             - define inv <inventory[lock_permissions].include[<item[air]>]>
             - inventory open d:<[inv]>
@@ -162,9 +166,19 @@ locked_container_events:
                 - flag <context.location> locks:!
             - else:
                 - narrate "You can't break this <context.location.material.name.replace[_].with[ ].to_titlecase> because it's locked!"
-                - determine passively cancelled
+                - determine cancelled
         on item moves from inventory to inventory:
             - if <context.origin.location.has_flag[locks.allowed]>:
                 - determine cancelled
         on block destroyed by explosion location_flagged:locks.allowed:
             - determine cancelled
+        on block burns location_flagged:locks.allowed:
+            - determine cancelled
+        on block spreads location_flagged:locks.allowed:
+            - determine cancelled
+        on cauldron level changes location_flagged:locks.allowed:
+            - determine cancelled
+        on piston extends:
+            - determine cancelled if:<context.blocks.filter_tag[<[filter_value].has_flag[locks.allowed]>].any>
+        on piston retracts:
+            - determine cancelled if:<context.blocks.filter_tag[<[filter_value].has_flag[locks.allowed]>].any>
