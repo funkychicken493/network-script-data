@@ -9,7 +9,7 @@ item_fixer:
       - if <[value].script.exists>:
         - if <[value].script> == fix_items_button:
           - foreach next
-        - inventory set slot:<[key]> o:<[value].script.name.as_item.with[quantity=<[value].quantity>]> d:<[inventory]>
+        - inventory set slot:<[key]> o:<[value].script.name.as[item].with[quantity=<[value].quantity>]> d:<[inventory]>
 
 item_fixer_give_back:
   type: task
